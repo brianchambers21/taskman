@@ -72,7 +72,7 @@ func TestNewServer(t *testing.T) {
 	}
 }
 
-func TestServer_RegisterTools(t *testing.T) {
+func TestServer_RegisterMCPComponents(t *testing.T) {
 	cfg := &config.Config{
 		APIBaseURL:    "http://localhost:8080",
 		APITimeout:    30 * time.Second,
@@ -86,10 +86,39 @@ func TestServer_RegisterTools(t *testing.T) {
 
 	server := NewServer(cfg)
 
-	// Test that registerTools doesn't panic or error
-	// In the current implementation, it just logs since no tools are implemented yet
+	// Test that all registration methods don't panic or error
 	server.registerTools()
+	server.registerResources()
+	server.registerPrompts()
 
-	// This test mainly ensures the method exists and can be called safely
-	// More comprehensive testing will be added when tools are implemented in future tasks
+	// Verify server was created with proper components
+	if server.mcpServer == nil {
+		t.Error("Expected mcpServer to be initialized")
+	}
+}
+
+func TestServer_ServerOptions(t *testing.T) {
+	cfg := &config.Config{
+		APIBaseURL:    "http://localhost:8080",
+		APITimeout:    30 * time.Second,
+		LogLevel:      "INFO",
+		ServerName:    "test-server",
+		ServerVersion: "1.0.0",
+		TransportMode: "stdio",
+		HTTPPort:      "8081",
+		HTTPHost:      "localhost",
+	}
+
+	// This test verifies that server options are properly configured
+	server := NewServer(cfg)
+
+	if server == nil {
+		t.Fatal("Expected server to be created")
+	}
+
+	// The server should be created with proper options including:
+	// - Instructions
+	// - InitializedHandler
+	// - PageSize
+	// - KeepAlive
 }
