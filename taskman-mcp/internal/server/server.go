@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
 	"github.com/bchamber/taskman-mcp/internal/config"
+	"github.com/bchamber/taskman-mcp/internal/prompts"
 	"github.com/bchamber/taskman-mcp/internal/resources"
 	"github.com/bchamber/taskman-mcp/internal/tools"
 )
@@ -367,9 +368,25 @@ func (s *Server) registerPrompts() {
 		Handler: s.handleCreateTaskPrompt,
 	}
 	
-	s.mcpServer.AddPrompts(taskPrompt)
+	// Collect all prompts from different modules
+	allPrompts := []*mcp.ServerPrompt{taskPrompt}
 	
-	slog.Info("Prompts registration completed", "prompt_count", 1)
+	// Add task-related prompts
+	taskPrompts := prompts.CreateTaskPrompts()
+	allPrompts = append(allPrompts, taskPrompts...)
+	
+	// Add project-related prompts
+	projectPrompts := prompts.CreateProjectPrompts()
+	allPrompts = append(allPrompts, projectPrompts...)
+	
+	// Add workflow-related prompts
+	workflowPrompts := prompts.CreateWorkflowPrompts()
+	allPrompts = append(allPrompts, workflowPrompts...)
+	
+	// Register all prompts with the MCP server
+	s.mcpServer.AddPrompts(allPrompts...)
+	
+	slog.Info("Prompts registration completed", "prompt_count", len(allPrompts))
 }
 
 // Create task prompt handler
