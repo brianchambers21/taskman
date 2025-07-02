@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
 	"github.com/bchamber/taskman-mcp/internal/config"
+	"github.com/bchamber/taskman-mcp/internal/tools"
 )
 
 type Server struct {
@@ -72,9 +73,43 @@ func (s *Server) registerTools() {
 		// No input parameters needed for health check
 	)
 	
-	s.mcpServer.AddTools(healthTool)
+	// Create task tools handler
+	taskTools := tools.NewTaskTools(s.apiClient)
 	
-	slog.Info("Tools registration completed", "tool_count", 1)
+	// Register task management tools
+	getTaskOverviewTool := mcp.NewServerTool(
+		"get_task_overview",
+		"Get a dashboard overview of tasks with status breakdown, overdue tasks, and recent activity",
+		taskTools.HandleGetTaskOverview,
+	)
+	
+	createTaskWithContextTool := mcp.NewServerTool(
+		"create_task_with_context",
+		"Create a new task with context and add an initial planning note",
+		taskTools.HandleCreateTaskWithContext,
+	)
+	
+	getTaskDetailsTool := mcp.NewServerTool(
+		"get_task_details",
+		"Get complete task details including notes and project information for decision-making",
+		taskTools.HandleGetTaskDetails,
+	)
+	
+	updateTaskProgressTool := mcp.NewServerTool(
+		"update_task_progress",
+		"Update task status/progress and add a progress note with change tracking",
+		taskTools.HandleUpdateTaskProgress,
+	)
+	
+	s.mcpServer.AddTools(
+		healthTool,
+		getTaskOverviewTool,
+		createTaskWithContextTool,
+		getTaskDetailsTool,
+		updateTaskProgressTool,
+	)
+	
+	slog.Info("Tools registration completed", "tool_count", 5)
 }
 
 // Health check tool handler
