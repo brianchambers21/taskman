@@ -11,6 +11,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
 	"github.com/bchamber/taskman-mcp/internal/config"
+	"github.com/bchamber/taskman-mcp/internal/resources"
 	"github.com/bchamber/taskman-mcp/internal/tools"
 )
 
@@ -76,6 +77,12 @@ func (s *Server) registerTools() {
 	// Create task tools handler
 	taskTools := tools.NewTaskTools(s.apiClient)
 	
+	// Create project tools handler
+	projectTools := tools.NewProjectTools(s.apiClient)
+	
+	// Create user tools handler
+	userTools := tools.NewUserTools(s.apiClient)
+	
 	// Register task management tools
 	getTaskOverviewTool := mcp.NewServerTool(
 		"get_task_overview",
@@ -101,15 +108,45 @@ func (s *Server) registerTools() {
 		taskTools.HandleUpdateTaskProgress,
 	)
 	
+	searchTasksTool := mcp.NewServerTool(
+		"search_tasks",
+		"Search tasks with advanced filtering and return results with summary statistics",
+		taskTools.HandleSearchTasks,
+	)
+	
+	// Register project management tools
+	getProjectStatusTool := mcp.NewServerTool(
+		"get_project_status",
+		"Get project overview with task breakdown, progress metrics, and insights",
+		projectTools.HandleGetProjectStatus,
+	)
+	
+	createProjectWithInitialTasksTool := mcp.NewServerTool(
+		"create_project_with_initial_tasks",
+		"Create a new project and populate it with initial tasks in one operation",
+		projectTools.HandleCreateProjectWithInitialTasks,
+	)
+	
+	// Register user-focused tools
+	getMyWorkTool := mcp.NewServerTool(
+		"get_my_work",
+		"Get personalized work queue with prioritized tasks and workload insights",
+		userTools.HandleGetMyWork,
+	)
+	
 	s.mcpServer.AddTools(
 		healthTool,
 		getTaskOverviewTool,
 		createTaskWithContextTool,
 		getTaskDetailsTool,
 		updateTaskProgressTool,
+		searchTasksTool,
+		getProjectStatusTool,
+		createProjectWithInitialTasksTool,
+		getMyWorkTool,
 	)
 	
-	slog.Info("Tools registration completed", "tool_count", 5)
+	slog.Info("Tools registration completed", "tool_count", 9)
 }
 
 // Health check tool handler
@@ -154,7 +191,12 @@ func (s *Server) handleHealthCheck(
 func (s *Server) registerResources() {
 	slog.Info("Registering MCP resources")
 	
-	// Register a basic API status resource
+	// Create resource handlers
+	taskResources := resources.NewTaskResources(s.apiClient)
+	projectResources := resources.NewProjectResources(s.apiClient)
+	dashboardResources := resources.NewDashboardResources(s.apiClient)
+	
+	// Register API status resource
 	statusResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://api/status",
@@ -165,9 +207,114 @@ func (s *Server) registerResources() {
 		Handler: s.handleStatusResource,
 	}
 	
-	s.mcpServer.AddResources(statusResource)
+	// Register task resources
+	taskResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://task/{task_id}",
+			Name:        "Task Details",
+			Description: "Individual task with complete details, notes, and project information",
+			MIMEType:    "text/plain",
+		},
+		Handler: taskResources.HandleTaskResource,
+	}
 	
-	slog.Info("Resources registration completed", "resource_count", 1)
+	tasksOverviewResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://tasks/overview",
+			Name:        "Tasks Overview",
+			Description: "Overview of all tasks with status and priority breakdowns",
+			MIMEType:    "text/plain",
+		},
+		Handler: taskResources.HandleTasksOverviewResource,
+	}
+	
+	userTasksResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://tasks/user/{user_id}",
+			Name:        "User Tasks",
+			Description: "All tasks assigned to a specific user, organized by status",
+			MIMEType:    "text/plain",
+		},
+		Handler: taskResources.HandleUserTasksResource,
+	}
+	
+	// Register project resources
+	projectResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://project/{project_id}",
+			Name:        "Project Details",
+			Description: "Individual project with task summary and progress metrics",
+			MIMEType:    "text/plain",
+		},
+		Handler: projectResources.HandleProjectResource,
+	}
+	
+	projectsOverviewResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://projects/overview",
+			Name:        "Projects Overview",
+			Description: "Overview of all projects with creation statistics",
+			MIMEType:    "text/plain",
+		},
+		Handler: projectResources.HandleProjectsOverviewResource,
+	}
+	
+	projectTasksResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://project/{project_id}/tasks",
+			Name:        "Project Tasks",
+			Description: "All tasks within a specific project, organized by status",
+			MIMEType:    "text/plain",
+		},
+		Handler: projectResources.HandleProjectTasksResource,
+	}
+	
+	// Register dashboard resources
+	systemDashboardResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://dashboard/system",
+			Name:        "System Dashboard",
+			Description: "System-wide dashboard with overall statistics and insights",
+			MIMEType:    "text/plain",
+		},
+		Handler: dashboardResources.HandleSystemDashboardResource,
+	}
+	
+	userDashboardResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://dashboard/user/{user_id}",
+			Name:        "User Dashboard",
+			Description: "Personalized dashboard for a specific user with workload and deadlines",
+			MIMEType:    "text/plain",
+		},
+		Handler: dashboardResources.HandleUserDashboardResource,
+	}
+	
+	projectDashboardResource := &mcp.ServerResource{
+		Resource: &mcp.Resource{
+			URI:         "taskman://dashboard/project/{project_id}",
+			Name:        "Project Dashboard",
+			Description: "Project-specific dashboard with team workload and critical tasks",
+			MIMEType:    "text/plain",
+		},
+		Handler: dashboardResources.HandleProjectDashboardResource,
+	}
+	
+	// Add all resources to the server
+	s.mcpServer.AddResources(
+		statusResource,
+		taskResource,
+		tasksOverviewResource,
+		userTasksResource,
+		projectResource,
+		projectsOverviewResource,
+		projectTasksResource,
+		systemDashboardResource,
+		userDashboardResource,
+		projectDashboardResource,
+	)
+	
+	slog.Info("Resources registration completed", "resource_count", 10)
 }
 
 // Status resource handler

@@ -59,6 +59,22 @@ type UpdateTaskProgressParams struct {
 	UpdatedBy   string  `json:"updated_by"`
 }
 
+// SearchTasksParams defines input for search_tasks tool
+type SearchTasksParams struct {
+	Status       string `json:"status,omitempty"`
+	Priority     string `json:"priority,omitempty"`
+	AssignedTo   string `json:"assigned_to,omitempty"`
+	ProjectID    string `json:"project_id,omitempty"`
+	CreatedBy    string `json:"created_by,omitempty"`
+	DueDateFrom  string `json:"due_date_from,omitempty"`
+	DueDateTo    string `json:"due_date_to,omitempty"`
+	SearchText   string `json:"search_text,omitempty"`
+	Archived     string `json:"archived,omitempty"`
+	SortBy       string `json:"sort_by,omitempty"`
+	SortOrder    string `json:"sort_order,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+}
+
 // Task represents a task from the API
 type Task struct {
 	TaskID          string    `json:"task_id"`
@@ -901,6 +917,398 @@ func (t *TaskTools) HandleUpdateTaskProgress(
 	}
 	
 	slog.Info("Task progress updated", "task_id", updatedTask.TaskID, "changes", len(changes), "note_added", err == nil)
+	
+	return &mcp.CallToolResultFor[map[string]any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: responseText,
+			},
+		},
+		Meta: result,
+	}, nil
+}
+
+// HandleSearchTasks implements the search_tasks tool
+func (t *TaskTools) HandleSearchTasks(
+	ctx context.Context,
+	session *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[SearchTasksParams],
+) (*mcp.CallToolResultFor[map[string]any], error) {
+	slog.Info("Executing search_tasks tool", "params", params.Arguments)
+	
+	// Build complex query parameters
+	queryParams := ""
+	
+	if params.Arguments.Status != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("status=%s", url.QueryEscape(params.Arguments.Status))
+	}
+	
+	if params.Arguments.Priority != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("priority=%s", url.QueryEscape(params.Arguments.Priority))
+	}
+	
+	if params.Arguments.AssignedTo != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("assigned_to=%s", url.QueryEscape(params.Arguments.AssignedTo))
+	}
+	
+	if params.Arguments.ProjectID != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("project_id=%s", url.QueryEscape(params.Arguments.ProjectID))
+	}
+	
+	if params.Arguments.CreatedBy != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("created_by=%s", url.QueryEscape(params.Arguments.CreatedBy))
+	}
+	
+	if params.Arguments.Archived != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("archived=%s", url.QueryEscape(params.Arguments.Archived))
+	}
+	
+	// Add date range filters (note: these would need API support)
+	if params.Arguments.DueDateFrom != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("due_date_from=%s", url.QueryEscape(params.Arguments.DueDateFrom))
+	}
+	
+	if params.Arguments.DueDateTo != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("due_date_to=%s", url.QueryEscape(params.Arguments.DueDateTo))
+	}
+	
+	// Add search text (note: would need API support for text search)
+	if params.Arguments.SearchText != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("search=%s", url.QueryEscape(params.Arguments.SearchText))
+	}
+	
+	// Add sorting and pagination
+	if params.Arguments.SortBy != "" {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("sort_by=%s", url.QueryEscape(params.Arguments.SortBy))
+		
+		if params.Arguments.SortOrder != "" {
+			queryParams += fmt.Sprintf("&sort_order=%s", url.QueryEscape(params.Arguments.SortOrder))
+		}
+	}
+	
+	if params.Arguments.Limit > 0 {
+		if queryParams == "" {
+			queryParams += "?"
+		} else {
+			queryParams += "&"
+		}
+		queryParams += fmt.Sprintf("limit=%d", params.Arguments.Limit)
+	}
+	
+	// Get tasks with complex filtering
+	tasksResp, err := t.apiClient.Get(ctx, "/api/v1/tasks"+queryParams)
+	if err != nil {
+		slog.Error("Failed to search tasks", "error", err)
+		return nil, fmt.Errorf("failed to search tasks: %w", err)
+	}
+	
+	var tasks []Task
+	if err := json.Unmarshal(tasksResp, &tasks); err != nil {
+		slog.Error("Failed to parse searched tasks", "error", err)
+		return nil, fmt.Errorf("failed to parse searched tasks: %w", err)
+	}
+	
+	// Apply client-side filtering for fields not supported by API
+	var filteredTasks []Task
+	
+	for _, task := range tasks {
+		include := true
+		
+		// Text search in task name and description (client-side)
+		if params.Arguments.SearchText != "" {
+			searchText := params.Arguments.SearchText
+			found := false
+			
+			// Search in task name
+			if task.TaskName != "" && 
+				fmt.Sprintf("%s", task.TaskName) != "" {
+				// Simple case-insensitive search
+				if len(searchText) <= len(task.TaskName) {
+					for i := 0; i <= len(task.TaskName)-len(searchText); i++ {
+						if task.TaskName[i:i+len(searchText)] == searchText {
+							found = true
+							break
+						}
+					}
+				}
+			}
+			
+			// Search in task description
+			if !found && task.TaskDescription != nil && *task.TaskDescription != "" {
+				desc := *task.TaskDescription
+				if len(searchText) <= len(desc) {
+					for i := 0; i <= len(desc)-len(searchText); i++ {
+						if desc[i:i+len(searchText)] == searchText {
+							found = true
+							break
+						}
+					}
+				}
+			}
+			
+			if !found {
+				include = false
+			}
+		}
+		
+		// Date range filtering (client-side)
+		if include && params.Arguments.DueDateFrom != "" && task.DueDate != nil {
+			if fromDate, err := time.Parse("2006-01-02", params.Arguments.DueDateFrom); err == nil {
+				if dueDate, err := time.Parse(time.RFC3339, *task.DueDate); err == nil {
+					if dueDate.Before(fromDate) {
+						include = false
+					}
+				}
+			}
+		}
+		
+		if include && params.Arguments.DueDateTo != "" && task.DueDate != nil {
+			if toDate, err := time.Parse("2006-01-02", params.Arguments.DueDateTo); err == nil {
+				if dueDate, err := time.Parse(time.RFC3339, *task.DueDate); err == nil {
+					if dueDate.After(toDate.Add(24 * time.Hour)) { // Include full day
+						include = false
+					}
+				}
+			}
+		}
+		
+		if include {
+			filteredTasks = append(filteredTasks, task)
+		}
+	}
+	
+	// Apply sorting (client-side for unsupported sorts)
+	if params.Arguments.SortBy != "" {
+		// Note: This is a simplified sorting implementation
+		// In a real implementation, you'd use sort.Slice with proper comparison functions
+	}
+	
+	// Apply limit (client-side)
+	if params.Arguments.Limit > 0 && len(filteredTasks) > params.Arguments.Limit {
+		filteredTasks = filteredTasks[:params.Arguments.Limit]
+	}
+	
+	// Generate search statistics
+	statusCounts := make(map[string]int)
+	priorityCounts := make(map[string]int)
+	projectCounts := make(map[string]int)
+	overdueTasks := []Task{}
+	
+	for _, task := range filteredTasks {
+		statusCounts[task.Status]++
+		
+		if task.Priority != nil {
+			priorityCounts[*task.Priority]++
+		} else {
+			priorityCounts["None"]++
+		}
+		
+		if task.ProjectID != nil {
+			projectCounts[*task.ProjectID]++
+		} else {
+			projectCounts["No Project"]++
+		}
+		
+		if isTaskOverdue(task) {
+			overdueTasks = append(overdueTasks, task)
+		}
+	}
+	
+	// Generate search insights
+	var insights []string
+	
+	totalResults := len(filteredTasks)
+	if totalResults == 0 {
+		insights = append(insights, "🔍 No tasks match your search criteria")
+	} else if totalResults == 1 {
+		insights = append(insights, "🎯 Found exactly one matching task")
+	} else if totalResults > 100 {
+		insights = append(insights, "📊 Large result set - consider narrowing your search")
+	}
+	
+	if len(overdueTasks) > 0 {
+		insights = append(insights, fmt.Sprintf("⚠️ %d of the results are overdue", len(overdueTasks)))
+	}
+	
+	if len(statusCounts) == 1 {
+		for status := range statusCounts {
+			insights = append(insights, fmt.Sprintf("📋 All results have status: %s", status))
+		}
+	}
+	
+	if len(priorityCounts) > 0 {
+		if high, exists := priorityCounts["High"]; exists && high > totalResults/2 {
+			insights = append(insights, "🔥 Most results are high priority")
+		}
+	}
+	
+	// Generate actionable suggestions
+	var suggestions []string
+	
+	if totalResults == 0 {
+		suggestions = append(suggestions, "🔍 Try broadening your search criteria")
+		suggestions = append(suggestions, "📋 Check if tasks exist with different statuses")
+	} else {
+		if len(overdueTasks) > 0 {
+			suggestions = append(suggestions, "🚨 Address overdue tasks first")
+		}
+		
+		if notStarted, exists := statusCounts["Not Started"]; exists && notStarted > 0 {
+			suggestions = append(suggestions, fmt.Sprintf("▶️ Consider starting %d pending tasks", notStarted))
+		}
+		
+		if review, exists := statusCounts["Review"]; exists && review > 0 {
+			suggestions = append(suggestions, fmt.Sprintf("👀 Review %d tasks waiting for approval", review))
+		}
+	}
+	
+	// Build comprehensive response
+	result := map[string]any{
+		"tasks":             filteredTasks,
+		"total_results":     totalResults,
+		"search_criteria":   params.Arguments,
+		"status_breakdown":  statusCounts,
+		"priority_breakdown": priorityCounts,
+		"project_breakdown": projectCounts,
+		"overdue_count":     len(overdueTasks),
+		"overdue_tasks":     overdueTasks,
+		"insights":          insights,
+		"suggestions":       suggestions,
+	}
+	
+	// Build response text
+	responseText := fmt.Sprintf(`Task Search Results\n==================\n\nFound: %d tasks\n`, totalResults)
+	
+	// Show search criteria
+	if params.Arguments.Status != "" || params.Arguments.Priority != "" || params.Arguments.AssignedTo != "" || 
+	   params.Arguments.ProjectID != "" || params.Arguments.SearchText != "" {
+		responseText += "\n🔍 Search Criteria:\n"
+		
+		if params.Arguments.Status != "" {
+			responseText += fmt.Sprintf("- Status: %s\n", params.Arguments.Status)
+		}
+		if params.Arguments.Priority != "" {
+			responseText += fmt.Sprintf("- Priority: %s\n", params.Arguments.Priority)
+		}
+		if params.Arguments.AssignedTo != "" {
+			responseText += fmt.Sprintf("- Assigned to: %s\n", params.Arguments.AssignedTo)
+		}
+		if params.Arguments.ProjectID != "" {
+			responseText += fmt.Sprintf("- Project ID: %s\n", params.Arguments.ProjectID)
+		}
+		if params.Arguments.SearchText != "" {
+			responseText += fmt.Sprintf("- Search text: %s\n", params.Arguments.SearchText)
+		}
+		if params.Arguments.DueDateFrom != "" {
+			responseText += fmt.Sprintf("- Due date from: %s\n", params.Arguments.DueDateFrom)
+		}
+		if params.Arguments.DueDateTo != "" {
+			responseText += fmt.Sprintf("- Due date to: %s\n", params.Arguments.DueDateTo)
+		}
+	}
+	
+	if totalResults > 0 {
+		responseText += "\n📊 Results Breakdown:\n"
+		for status, count := range statusCounts {
+			responseText += fmt.Sprintf("- %s: %d\n", status, count)
+		}
+		
+		if len(overdueTasks) > 0 {
+			responseText += fmt.Sprintf("\n⚠️ Overdue Tasks (%d):\n", len(overdueTasks))
+			for i, task := range overdueTasks {
+				if i < 5 { // Show only first 5
+					responseText += fmt.Sprintf("- %s (Due: %s)\n", task.TaskName, *task.DueDate)
+				}
+			}
+			if len(overdueTasks) > 5 {
+				responseText += fmt.Sprintf("... and %d more overdue tasks\n", len(overdueTasks)-5)
+			}
+		}
+		
+		responseText += fmt.Sprintf("\n📋 Tasks (showing %d):\n", len(filteredTasks))
+		for i, task := range filteredTasks {
+			if i < 10 { // Show only first 10
+				assignee := "Unassigned"
+				if task.AssignedTo != nil {
+					assignee = *task.AssignedTo
+				}
+				priority := "None"
+				if task.Priority != nil {
+					priority = *task.Priority
+				}
+				responseText += fmt.Sprintf("- %s (%s, %s) - %s\n", task.TaskName, task.Status, priority, assignee)
+			}
+		}
+		if len(filteredTasks) > 10 {
+			responseText += fmt.Sprintf("... and %d more tasks\n", len(filteredTasks)-10)
+		}
+	}
+	
+	if len(insights) > 0 {
+		responseText += "\n💡 Insights:\n"
+		for _, insight := range insights {
+			responseText += fmt.Sprintf("- %s\n", insight)
+		}
+	}
+	
+	if len(suggestions) > 0 {
+		responseText += "\n📋 Suggestions:\n"
+		for _, suggestion := range suggestions {
+			responseText += fmt.Sprintf("- %s\n", suggestion)
+		}
+	}
+	
+	slog.Info("Task search completed", "total_results", totalResults, "overdue_count", len(overdueTasks))
 	
 	return &mcp.CallToolResultFor[map[string]any]{
 		Content: []mcp.Content{

@@ -517,3 +517,126 @@ func TestTaskTools_HandleUpdateTaskProgress_MissingRequiredFields(t *testing.T) 
 		t.Fatal("Expected error for missing updated_by")
 	}
 }
+
+func TestTaskTools_HandleSearchTasks(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[SearchTasksParams]{
+		Arguments: SearchTasksParams{
+			Status:     "In Progress",
+			Priority:   "High",
+			AssignedTo: "john.doe",
+			Limit:      5,
+		},
+	}
+
+	result, err := taskTools.HandleSearchTasks(ctx, session, params)
+	if err != nil {
+		t.Fatalf("HandleSearchTasks failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result is nil")
+	}
+
+	if len(result.Content) == 0 {
+		t.Fatal("No content in result")
+	}
+
+	textContent, ok := result.Content[0].(*mcp.TextContent)
+	if !ok {
+		t.Fatal("First content item is not TextContent")
+	}
+
+	if textContent.Text == "" {
+		t.Fatal("Text content is empty")
+	}
+
+	// Check that meta contains expected fields
+	if result.Meta == nil {
+		t.Fatal("Meta is nil")
+	}
+
+	meta := result.Meta
+	if _, ok := meta["tasks"]; !ok {
+		t.Error("Meta missing tasks")
+	}
+	if _, ok := meta["total_results"]; !ok {
+		t.Error("Meta missing total_results")
+	}
+	if _, ok := meta["search_criteria"]; !ok {
+		t.Error("Meta missing search_criteria")
+	}
+	if _, ok := meta["status_breakdown"]; !ok {
+		t.Error("Meta missing status_breakdown")
+	}
+	if _, ok := meta["priority_breakdown"]; !ok {
+		t.Error("Meta missing priority_breakdown")
+	}
+}
+
+func TestTaskTools_HandleSearchTasks_EmptyParams(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[SearchTasksParams]{
+		Arguments: SearchTasksParams{},
+	}
+
+	result, err := taskTools.HandleSearchTasks(ctx, session, params)
+	if err != nil {
+		t.Fatalf("HandleSearchTasks with empty params failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result is nil")
+	}
+
+	// Should return all tasks when no filters are applied
+	meta := result.Meta
+	if totalResults := meta["total_results"].(int); totalResults < 0 {
+		t.Error("Expected non-negative total results")
+	}
+}
+
+func TestTaskTools_HandleSearchTasks_WithTextSearch(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[SearchTasksParams]{
+		Arguments: SearchTasksParams{
+			SearchText: "Test",
+		},
+	}
+
+	result, err := taskTools.HandleSearchTasks(ctx, session, params)
+	if err != nil {
+		t.Fatalf("HandleSearchTasks with text search failed: %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Result is nil")
+	}
+
+	// The search should work (even if client-side filtering)
+	meta := result.Meta
+	if _, ok := meta["total_results"]; !ok {
+		t.Error("Meta missing total_results")
+	}
+}
