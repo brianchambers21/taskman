@@ -2,18 +2,19 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
 	"github.com/bchamber/taskman-mcp/internal/config"
 	"github.com/bchamber/taskman-mcp/internal/prompts"
 	"github.com/bchamber/taskman-mcp/internal/resources"
 	"github.com/bchamber/taskman-mcp/internal/tools"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type Server struct {
@@ -24,11 +25,11 @@ type Server struct {
 }
 
 func NewServer(cfg *config.Config) *Server {
-	slog.Info("Creating new MCP server", 
+	slog.Info("Creating new MCP server",
 		"server_name", cfg.ServerName,
 		"server_version", cfg.ServerVersion,
 	)
-	
+
 	// Create MCP server instance with proper options
 	serverOptions := &mcp.ServerOptions{
 		Instructions: "Taskman MCP Server - Provides task management tools, resources, and prompts",
@@ -36,37 +37,40 @@ func NewServer(cfg *config.Config) *Server {
 			slog.Info("MCP client initialized", "session", session)
 		},
 		PageSize:  100,
-		KeepAlive: 30 * time.Second,
+		KeepAlive: 0, // Disable keep-alive to prevent ping timeout issues
 	}
-	
+
 	mcpServer := mcp.NewServer(cfg.ServerName, cfg.ServerVersion, serverOptions)
-	
+
 	// Create API client
 	apiClient := client.NewAPIClient(cfg.APIBaseURL, cfg.APITimeout)
-	
+
 	server := &Server{
 		mcpServer: mcpServer,
 		apiClient: apiClient,
 		config:    cfg,
 	}
-	
+
 	// Set up HTTP server if needed
 	if cfg.TransportMode == "http" || cfg.TransportMode == "both" {
 		server.setupHTTPServer()
 	}
-	
+
 	// Register tools, resources, and prompts
 	server.registerTools()
 	server.registerResources()
 	server.registerPrompts()
-	
+
+	// Add comprehensive logging middleware
+	server.setupLogging()
+
 	slog.Info("MCP server created successfully")
 	return server
 }
 
 func (s *Server) registerTools() {
 	slog.Info("Registering MCP tools")
-	
+
 	// Register a basic health check tool to demonstrate functionality
 	healthTool := mcp.NewServerTool(
 		"health_check",
@@ -74,67 +78,79 @@ func (s *Server) registerTools() {
 		s.handleHealthCheck,
 		// No input parameters needed for health check
 	)
-	
+
 	// Create task tools handler
 	taskTools := tools.NewTaskTools(s.apiClient)
-	
+
 	// Create project tools handler
 	projectTools := tools.NewProjectTools(s.apiClient)
-	
+
 	// Create user tools handler
 	userTools := tools.NewUserTools(s.apiClient)
-	
+
 	// Register task management tools
 	getTaskOverviewTool := mcp.NewServerTool(
 		"get_task_overview",
 		"Get a dashboard overview of tasks with status breakdown, overdue tasks, and recent activity",
 		taskTools.HandleGetTaskOverview,
 	)
-	
+
 	createTaskWithContextTool := mcp.NewServerTool(
 		"create_task_with_context",
 		"Create a new task with context and add an initial planning note",
 		taskTools.HandleCreateTaskWithContext,
 	)
-	
+
 	getTaskDetailsTool := mcp.NewServerTool(
 		"get_task_details",
 		"Get complete task details including notes and project information for decision-making",
 		taskTools.HandleGetTaskDetails,
 	)
-	
+
 	updateTaskProgressTool := mcp.NewServerTool(
 		"update_task_progress",
 		"Update task status/progress and add a progress note with change tracking",
 		taskTools.HandleUpdateTaskProgress,
 	)
-	
+
 	searchTasksTool := mcp.NewServerTool(
 		"search_tasks",
 		"Search tasks with advanced filtering and return results with summary statistics",
 		taskTools.HandleSearchTasks,
 	)
-	
+
 	// Register project management tools
 	getProjectStatusTool := mcp.NewServerTool(
 		"get_project_status",
 		"Get project overview with task breakdown, progress metrics, and insights",
 		projectTools.HandleGetProjectStatus,
 	)
-	
+
 	createProjectWithInitialTasksTool := mcp.NewServerTool(
 		"create_project_with_initial_tasks",
 		"Create a new project and populate it with initial tasks in one operation",
 		projectTools.HandleCreateProjectWithInitialTasks,
 	)
-	
+
+	getAllProjectsTool := mcp.NewServerTool(
+		"get_all_projects",
+		"Get a list of all projects in the system",
+		projectTools.HandleGetAllProjects,
+	)
+
+	getAllTasksTool := mcp.NewServerTool(
+		"get_all_tasks",
+		"Get a list of all tasks in the system with status breakdown and insights",
+		taskTools.HandleGetAllTasks,
+	)
+
 	// Register user-focused tools
 	getMyWorkTool := mcp.NewServerTool(
 		"get_my_work",
 		"Get personalized work queue with prioritized tasks and workload insights",
 		userTools.HandleGetMyWork,
 	)
-	
+
 	s.mcpServer.AddTools(
 		healthTool,
 		getTaskOverviewTool,
@@ -144,10 +160,12 @@ func (s *Server) registerTools() {
 		searchTasksTool,
 		getProjectStatusTool,
 		createProjectWithInitialTasksTool,
+		getAllProjectsTool,
+		getAllTasksTool,
 		getMyWorkTool,
 	)
-	
-	slog.Info("Tools registration completed", "tool_count", 9)
+
+	slog.Info("Tools registration completed", "tool_count", 11)
 }
 
 // Health check tool handler
@@ -157,7 +175,7 @@ func (s *Server) handleHealthCheck(
 	params *mcp.CallToolParamsFor[map[string]any],
 ) (*mcp.CallToolResultFor[map[string]any], error) {
 	slog.Info("Executing health_check tool")
-	
+
 	// Make API call to health endpoint
 	resp, err := s.apiClient.Get(ctx, "/health")
 	if err != nil {
@@ -170,15 +188,15 @@ func (s *Server) handleHealthCheck(
 			},
 		}, nil
 	}
-	
+
 	result := map[string]any{
-		"status":    "healthy",
+		"status":       "healthy",
 		"api_response": string(resp),
-		"timestamp": time.Now().Format(time.RFC3339),
+		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	
+
 	slog.Info("Health check completed successfully")
-	
+
 	return &mcp.CallToolResultFor[map[string]any]{
 		Content: []mcp.Content{
 			&mcp.TextContent{
@@ -191,12 +209,12 @@ func (s *Server) handleHealthCheck(
 
 func (s *Server) registerResources() {
 	slog.Info("Registering MCP resources")
-	
+
 	// Create resource handlers
 	taskResources := resources.NewTaskResources(s.apiClient)
 	projectResources := resources.NewProjectResources(s.apiClient)
 	dashboardResources := resources.NewDashboardResources(s.apiClient)
-	
+
 	// Register API status resource
 	statusResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
@@ -207,7 +225,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: s.handleStatusResource,
 	}
-	
+
 	// Register task resources
 	taskResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
@@ -218,7 +236,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: taskResources.HandleTaskResource,
 	}
-	
+
 	tasksOverviewResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://tasks/overview",
@@ -228,7 +246,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: taskResources.HandleTasksOverviewResource,
 	}
-	
+
 	userTasksResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://tasks/user/{user_id}",
@@ -238,7 +256,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: taskResources.HandleUserTasksResource,
 	}
-	
+
 	// Register project resources
 	projectResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
@@ -249,7 +267,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: projectResources.HandleProjectResource,
 	}
-	
+
 	projectsOverviewResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://projects/overview",
@@ -259,7 +277,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: projectResources.HandleProjectsOverviewResource,
 	}
-	
+
 	projectTasksResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://project/{project_id}/tasks",
@@ -269,7 +287,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: projectResources.HandleProjectTasksResource,
 	}
-	
+
 	// Register dashboard resources
 	systemDashboardResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
@@ -280,7 +298,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: dashboardResources.HandleSystemDashboardResource,
 	}
-	
+
 	userDashboardResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://dashboard/user/{user_id}",
@@ -290,7 +308,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: dashboardResources.HandleUserDashboardResource,
 	}
-	
+
 	projectDashboardResource := &mcp.ServerResource{
 		Resource: &mcp.Resource{
 			URI:         "taskman://dashboard/project/{project_id}",
@@ -300,7 +318,7 @@ func (s *Server) registerResources() {
 		},
 		Handler: dashboardResources.HandleProjectDashboardResource,
 	}
-	
+
 	// Add all resources to the server
 	s.mcpServer.AddResources(
 		statusResource,
@@ -314,7 +332,7 @@ func (s *Server) registerResources() {
 		userDashboardResource,
 		projectDashboardResource,
 	)
-	
+
 	slog.Info("Resources registration completed", "resource_count", 10)
 }
 
@@ -325,14 +343,14 @@ func (s *Server) handleStatusResource(
 	params *mcp.ReadResourceParams,
 ) (*mcp.ReadResourceResult, error) {
 	slog.Info("Reading status resource", "uri", params.URI)
-	
+
 	// Make API call to health endpoint
 	resp, err := s.apiClient.Get(ctx, "/health")
 	if err != nil {
 		slog.Error("Failed to read API status", "error", err)
 		return nil, fmt.Errorf("failed to read API status: %w", err)
 	}
-	
+
 	return &mcp.ReadResourceResult{
 		Contents: []*mcp.ResourceContents{
 			{
@@ -346,7 +364,7 @@ func (s *Server) handleStatusResource(
 
 func (s *Server) registerPrompts() {
 	slog.Info("Registering MCP prompts")
-	
+
 	// Register a basic task creation prompt template
 	taskPrompt := &mcp.ServerPrompt{
 		Prompt: &mcp.Prompt{
@@ -367,25 +385,25 @@ func (s *Server) registerPrompts() {
 		},
 		Handler: s.handleCreateTaskPrompt,
 	}
-	
+
 	// Collect all prompts from different modules
 	allPrompts := []*mcp.ServerPrompt{taskPrompt}
-	
+
 	// Add task-related prompts
 	taskPrompts := prompts.CreateTaskPrompts()
 	allPrompts = append(allPrompts, taskPrompts...)
-	
+
 	// Add project-related prompts
 	projectPrompts := prompts.CreateProjectPrompts()
 	allPrompts = append(allPrompts, projectPrompts...)
-	
+
 	// Add workflow-related prompts
 	workflowPrompts := prompts.CreateWorkflowPrompts()
 	allPrompts = append(allPrompts, workflowPrompts...)
-	
+
 	// Register all prompts with the MCP server
 	s.mcpServer.AddPrompts(allPrompts...)
-	
+
 	slog.Info("Prompts registration completed", "prompt_count", len(allPrompts))
 }
 
@@ -396,11 +414,11 @@ func (s *Server) handleCreateTaskPrompt(
 	params *mcp.GetPromptParams,
 ) (*mcp.GetPromptResult, error) {
 	slog.Info("Generating create_task prompt", "name", params.Name)
-	
+
 	// Extract arguments
 	taskName := ""
 	projectID := ""
-	
+
 	if params.Arguments != nil {
 		if name, ok := params.Arguments["task_name"]; ok {
 			taskName = name
@@ -409,17 +427,17 @@ func (s *Server) handleCreateTaskPrompt(
 			projectID = pid
 		}
 	}
-	
+
 	// Generate prompt text
 	promptText := fmt.Sprintf(`Create a new task with the following details:
 
 Task Name: %s`, taskName)
-	
+
 	if projectID != "" {
 		promptText += fmt.Sprintf(`
 Project ID: %s`, projectID)
 	}
-	
+
 	promptText += `
 
 Please provide:
@@ -428,7 +446,7 @@ Please provide:
 3. Estimated completion timeline
 4. Any dependencies or prerequisites
 5. Success criteria for completion`
-	
+
 	return &mcp.GetPromptResult{
 		Description: "Task creation guidance prompt",
 		Messages: []*mcp.PromptMessage{
@@ -444,23 +462,23 @@ Please provide:
 
 func (s *Server) setupHTTPServer() {
 	mux := http.NewServeMux()
-	
+
 	// Create SSE handler that provides access to our server
 	sseHandler := mcp.NewSSEHandler(func(r *http.Request) *mcp.Server {
 		return s.mcpServer
 	})
-	
+
 	// Set up SSE endpoint for streaming connections
 	mux.Handle("/sse", sseHandler)
-	
+
 	// Set up streamable HTTP handler for HTTP transport
 	streamableHandler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
 		return s.mcpServer
 	}, nil)
-	
-	// Set up streamable HTTP endpoint  
+
+	// Set up streamable HTTP endpoint
 	mux.Handle("/mcp", streamableHandler)
-	
+
 	addr := fmt.Sprintf("%s:%s", s.config.HTTPHost, s.config.HTTPPort)
 	s.httpServer = &http.Server{
 		Addr:           addr,
@@ -469,8 +487,8 @@ func (s *Server) setupHTTPServer() {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
-	
-	slog.Info("HTTP server configured", 
+
+	slog.Info("HTTP server configured",
 		"address", addr,
 		"sse_endpoint", "/sse",
 		"http_endpoint", "/mcp",
@@ -479,17 +497,17 @@ func (s *Server) setupHTTPServer() {
 
 func (s *Server) Run(ctx context.Context) error {
 	slog.Info("Starting MCP server", "transport_mode", s.config.TransportMode)
-	
+
 	var wg sync.WaitGroup
 	errCh := make(chan error, 2)
-	
+
 	// Start stdio transport if needed
 	if s.config.TransportMode == "stdio" || s.config.TransportMode == "both" {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			slog.Info("Starting MCP server with stdio transport")
-			
+
 			transport := mcp.NewStdioTransport()
 			if err := s.mcpServer.Run(ctx, transport); err != nil {
 				slog.Error("Stdio MCP server failed", "error", err)
@@ -497,20 +515,20 @@ func (s *Server) Run(ctx context.Context) error {
 			}
 		}()
 	}
-	
+
 	// Start HTTP server if needed
 	if s.config.TransportMode == "http" || s.config.TransportMode == "both" {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			slog.Info("Starting HTTP server", "address", s.httpServer.Addr)
-			
+
 			if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 				slog.Error("HTTP server failed", "error", err)
 				errCh <- fmt.Errorf("HTTP server error: %w", err)
 			}
 		}()
-		
+
 		// Handle graceful HTTP server shutdown
 		go func() {
 			<-ctx.Done()
@@ -522,13 +540,13 @@ func (s *Server) Run(ctx context.Context) error {
 			}
 		}()
 	}
-	
+
 	// Wait for either completion or error
 	go func() {
 		wg.Wait()
 		close(errCh)
 	}()
-	
+
 	// Return first error if any
 	select {
 	case err := <-errCh:
@@ -538,7 +556,114 @@ func (s *Server) Run(ctx context.Context) error {
 	case <-ctx.Done():
 		slog.Info("Server stopped by context cancellation")
 	}
-	
+
 	slog.Info("MCP server stopped")
 	return nil
+}
+
+// setupLogging configures comprehensive logging for the MCP server
+func (s *Server) setupLogging() {
+	slog.Info("Setting up comprehensive MCP request/response logging")
+	
+	// Create logging middleware for incoming requests
+	loggingMiddleware := s.createLoggingMiddleware()
+	
+	// Add middleware for both receiving and sending
+	s.mcpServer.AddReceivingMiddleware(loggingMiddleware)
+	s.mcpServer.AddSendingMiddleware(loggingMiddleware)
+	
+	slog.Info("MCP logging middleware configured")
+}
+
+// createLoggingMiddleware creates middleware that logs all MCP requests and responses
+func (s *Server) createLoggingMiddleware() mcp.Middleware[*mcp.ServerSession] {
+	return func(next mcp.MethodHandler[*mcp.ServerSession]) mcp.MethodHandler[*mcp.ServerSession] {
+		return func(ctx context.Context, session *mcp.ServerSession, method string, params mcp.Params) (mcp.Result, error) {
+			// Handle ping requests with minimal logging
+			if method == "ping" {
+				start := time.Now()
+				result, err := next(ctx, session, method, params)
+				duration := time.Since(start)
+				
+				if err != nil {
+					slog.Error("PING FAILED", "error", err, "duration_ms", duration.Milliseconds())
+				} else {
+					slog.Info("PING OK", "duration_ms", duration.Milliseconds())
+				}
+				return result, err
+			}
+			
+			start := time.Now()
+			
+			// Log incoming request with full details
+			slog.Info("=== MCP REQUEST START ===",
+				"method", method,
+				"timestamp", start.Format(time.RFC3339Nano),
+				"session_info", fmt.Sprintf("%+v", session),
+			)
+			
+			// Log parameters in detail
+			if params != nil {
+				slog.Info("MCP Request Parameters",
+					"method", method,
+					"params_type", fmt.Sprintf("%T", params),
+					"params_value", fmt.Sprintf("%+v", params),
+				)
+				
+				// Try to marshal params to see raw JSON
+				if paramsJSON, err := json.Marshal(params); err == nil {
+					slog.Info("MCP Request Parameters JSON",
+						"method", method,
+						"params_json", string(paramsJSON),
+					)
+				}
+			} else {
+				slog.Info("MCP Request Parameters",
+					"method", method,
+					"params", "null",
+				)
+			}
+			
+			// Execute the handler
+			result, err := next(ctx, session, method, params)
+			
+			duration := time.Since(start)
+			
+			// Log response with full details
+			if err != nil {
+				slog.Error("=== MCP REQUEST FAILED ===",
+					"method", method,
+					"error", err.Error(),
+					"error_type", fmt.Sprintf("%T", err),
+					"duration_ms", duration.Milliseconds(),
+					"timestamp", time.Now().Format(time.RFC3339Nano),
+				)
+			} else {
+				slog.Info("=== MCP REQUEST SUCCESS ===",
+					"method", method,
+					"result_type", fmt.Sprintf("%T", result),
+					"duration_ms", duration.Milliseconds(),
+					"timestamp", time.Now().Format(time.RFC3339Nano),
+				)
+				
+				// Log result details
+				if result != nil {
+					slog.Info("MCP Response Result",
+						"method", method,
+						"result_value", fmt.Sprintf("%+v", result),
+					)
+					
+					// Try to marshal result to see raw JSON
+					if resultJSON, err := json.Marshal(result); err == nil {
+						slog.Info("MCP Response Result JSON",
+							"method", method,
+							"result_json", string(resultJSON),
+						)
+					}
+				}
+			}
+			
+			return result, err
+		}
+	}
 }
