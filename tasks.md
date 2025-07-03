@@ -300,3 +300,18 @@
 - All tests pass (unit, integration, end-to-end)
 - System can be deployed and run successfully
 - Documentation is complete and accurate
+
+
+## Task 14: MCP client 
+
+**Description:** Client of MCP server that is able to take an intent from a model and execute the appropriate MCP calls (list_tools, execute_tool())
+
+**Requirements:** 
+
+- Create MCP client in separate folder from the root of the project named `mcp-client`
+- Integration tests must be present to test the features of the client including listing tools and executing tools, as well as fetching prompts. 
+- The client should expect an input message that is compatible with the MCP specification. 
+- The client should use HTTP for transport since we are interacting with a web-deployed MCP server.
+- The client must fully comply with the MCP specification 
+- The client should use the MCP golang SDK
+- The client should be executable by the end user for testing purposes. 
