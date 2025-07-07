@@ -2,6 +2,10 @@
 
 A task management system built with Go, PostgreSQL, and Model Context Protocol (MCP).
 
+## Action Items 
+[ ] No authN / authZ currently
+
+
 ## Architecture
 
 - **REST API**: Golang-based REST API for task management
