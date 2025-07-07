@@ -340,6 +340,36 @@ func (t *TaskTools) HandleCreateTaskWithContext(
 		return nil, fmt.Errorf("created_by is required")
 	}
 
+	// Validate status if provided
+	validStatuses := []string{"Not Started", "In Progress", "Blocked", "Review", "Complete"}
+	if params.Arguments.Status != "" {
+		isValid := false
+		for _, validStatus := range validStatuses {
+			if params.Arguments.Status == validStatus {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid status '%s'. Valid statuses are: %v", params.Arguments.Status, validStatuses)
+		}
+	}
+
+	// Validate priority if provided
+	validPriorities := []string{"Low", "Medium", "High"}
+	if params.Arguments.Priority != "" {
+		isValid := false
+		for _, validPriority := range validPriorities {
+			if params.Arguments.Priority == validPriority {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid priority '%s'. Valid priorities are: %v", params.Arguments.Priority, validPriorities)
+		}
+	}
+
 	// Parse due date if provided
 	var dueDate *time.Time
 	if params.Arguments.DueDate != "" {
@@ -720,6 +750,36 @@ func (t *TaskTools) HandleUpdateTaskProgress(
 	}
 	if params.Arguments.UpdatedBy == "" {
 		return nil, fmt.Errorf("updated_by is required")
+	}
+
+	// Validate status if provided
+	validStatuses := []string{"Not Started", "In Progress", "Blocked", "Review", "Complete"}
+	if params.Arguments.Status != "" {
+		isValid := false
+		for _, validStatus := range validStatuses {
+			if params.Arguments.Status == validStatus {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid status '%s'. Valid statuses are: %v", params.Arguments.Status, validStatuses)
+		}
+	}
+
+	// Validate priority if provided
+	validPriorities := []string{"Low", "Medium", "High"}
+	if params.Arguments.Priority != "" {
+		isValid := false
+		for _, validPriority := range validPriorities {
+			if params.Arguments.Priority == validPriority {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			return nil, fmt.Errorf("invalid priority '%s'. Valid priorities are: %v", params.Arguments.Priority, validPriorities)
+		}
 	}
 
 	// Get current task state first
@@ -1447,6 +1507,107 @@ func (t *TaskTools) HandleGetAllTasks(
 	}
 
 	slog.Info("Tasks list retrieved", "total_tasks", len(tasks), "overdue_count", len(overdueTasks))
+
+	return &mcp.CallToolResultFor[map[string]any]{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: responseText,
+			},
+		},
+		Meta: result,
+	}, nil
+}
+
+// AddTaskNoteParams defines input for add_task_note tool
+type AddTaskNoteParams struct {
+	TaskID    string `json:"task_id"`
+	Note      string `json:"note"`
+	CreatedBy string `json:"created_by"`
+}
+
+// HandleAddTaskNote implements the add_task_note tool
+func (t *TaskTools) HandleAddTaskNote(
+	ctx context.Context,
+	session *mcp.ServerSession,
+	params *mcp.CallToolParamsFor[AddTaskNoteParams],
+) (*mcp.CallToolResultFor[map[string]any], error) {
+	slog.Info("Executing add_task_note tool", "params", params.Arguments)
+
+	// Validate required fields
+	if params.Arguments.TaskID == "" {
+		return nil, fmt.Errorf("task_id is required")
+	}
+	if params.Arguments.Note == "" {
+		return nil, fmt.Errorf("note is required")
+	}
+	if params.Arguments.CreatedBy == "" {
+		return nil, fmt.Errorf("created_by is required")
+	}
+
+	// First, verify the task exists
+	taskResp, err := t.apiClient.Get(ctx, fmt.Sprintf("/api/v1/tasks/%s", params.Arguments.TaskID))
+	if err != nil {
+		slog.Error("Failed to get task for note addition", "error", err, "task_id", params.Arguments.TaskID)
+		return nil, fmt.Errorf("failed to verify task exists: %w", err)
+	}
+
+	var task Task
+	if err := json.Unmarshal(taskResp, &task); err != nil {
+		slog.Error("Failed to parse task", "error", err)
+		return nil, fmt.Errorf("failed to parse task: %w", err)
+	}
+
+	// Create the note
+	noteRequest := map[string]interface{}{
+		"note":       params.Arguments.Note,
+		"created_by": params.Arguments.CreatedBy,
+	}
+
+	noteResp, err := t.apiClient.Post(ctx, fmt.Sprintf("/api/v1/tasks/%s/notes", params.Arguments.TaskID), noteRequest)
+	if err != nil {
+		slog.Error("Failed to add note", "error", err)
+		return nil, fmt.Errorf("failed to add note: %w", err)
+	}
+
+	var createdNote TaskNote
+	if err := json.Unmarshal(noteResp, &createdNote); err != nil {
+		slog.Error("Failed to parse created note", "error", err)
+		return nil, fmt.Errorf("failed to parse created note: %w", err)
+	}
+
+	// Build response
+	responseText := fmt.Sprintf("Note Added Successfully\n")
+	responseText += "======================\n\n"
+	responseText += fmt.Sprintf("Task: %s\n", task.TaskName)
+	responseText += fmt.Sprintf("Task ID: %s\n", task.TaskID)
+	responseText += fmt.Sprintf("Note ID: %s\n", createdNote.NoteID)
+	responseText += fmt.Sprintf("Note: %s\n", createdNote.Note)
+	responseText += fmt.Sprintf("Created by: %s\n", createdNote.CreatedBy)
+	responseText += fmt.Sprintf("Created: %s\n", createdNote.CreationDate)
+
+	// Suggest next steps
+	nextSteps := []string{
+		"📝 Note has been successfully added to the task",
+		"👀 Check task details to see all notes",
+		"📋 Consider updating task status if progress was made",
+		"🔄 Add more notes as work progresses",
+	}
+
+	responseText += "\n💡 Next Steps:\n"
+	for _, step := range nextSteps {
+		responseText += fmt.Sprintf("- %s\n", step)
+	}
+
+	result := map[string]any{
+		"success":      true,
+		"task":         task,
+		"note":         createdNote,
+		"note_id":      createdNote.NoteID,
+		"task_id":      params.Arguments.TaskID,
+		"created_note": createdNote,
+	}
+
+	slog.Info("Note added successfully", "task_id", params.Arguments.TaskID, "note_id", createdNote.NoteID)
 
 	return &mcp.CallToolResultFor[map[string]any]{
 		Content: []mcp.Content{

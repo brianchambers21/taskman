@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for testing
@@ -19,22 +19,22 @@ func createMockAPIServer() *httptest.Server {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 			// Filter tasks based on query parameters
 			status := r.URL.Query().Get("status")
-			
+
 			// Handle space in status parameter for URL encoding
 			if status == "In Progress" || status == "In+Progress" {
 				status = "In Progress"
 			}
-			
+
 			tasks := []Task{
 				{
-					TaskID:         "task-1",
-					TaskName:       "Test Task 1",
-					Status:         "In Progress",
-					Priority:       stringPtr("High"),
-					AssignedTo:     stringPtr("john.doe"),
-					DueDate:        stringPtr("2024-01-15T12:00:00Z"),
-					CreatedBy:      "admin",
-					CreationDate:   "2024-01-01T10:00:00Z",
+					TaskID:       "task-1",
+					TaskName:     "Test Task 1",
+					Status:       "In Progress",
+					Priority:     stringPtr("High"),
+					AssignedTo:   stringPtr("john.doe"),
+					DueDate:      stringPtr("2024-01-15T12:00:00Z"),
+					CreatedBy:    "admin",
+					CreationDate: "2024-01-01T10:00:00Z",
 				},
 				{
 					TaskID:       "task-2",
@@ -44,7 +44,7 @@ func createMockAPIServer() *httptest.Server {
 					CreationDate: "2024-01-02T10:00:00Z",
 				},
 			}
-			
+
 			// Apply status filter if provided
 			if status != "" {
 				var filteredTasks []Task
@@ -55,15 +55,15 @@ func createMockAPIServer() *httptest.Server {
 				}
 				tasks = filteredTasks
 			}
-			
+
 			json.NewEncoder(w).Encode(tasks)
 
 		case r.Method == "GET" && r.URL.Path == "/api/v1/projects":
 			projects := []Project{
 				{
-					ProjectID:   "proj-1",
-					ProjectName: "Test Project",
-					CreatedBy:   "admin",
+					ProjectID:    "proj-1",
+					ProjectName:  "Test Project",
+					CreatedBy:    "admin",
 					CreationDate: "2024-01-01T09:00:00Z",
 				},
 			}
@@ -91,18 +91,18 @@ func createMockAPIServer() *httptest.Server {
 
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks/task-1":
 			task := Task{
-				TaskID:         "task-1",
-				TaskName:       "Test Task 1",
+				TaskID:          "task-1",
+				TaskName:        "Test Task 1",
 				TaskDescription: stringPtr("Test description"),
-				Status:         "In Progress",
-				Priority:       stringPtr("High"),
-				AssignedTo:     stringPtr("john.doe"),
-				ProjectID:      stringPtr("proj-1"),
-				DueDate:        stringPtr("2024-01-15T12:00:00Z"),
-				CreatedBy:      "admin",
-				CreationDate:   "2024-01-01T10:00:00Z",
-				LastUpdatedBy:  stringPtr("john.doe"),
-				LastUpdateDate: stringPtr("2024-01-10T15:30:00Z"),
+				Status:          "In Progress",
+				Priority:        stringPtr("High"),
+				AssignedTo:      stringPtr("john.doe"),
+				ProjectID:       stringPtr("proj-1"),
+				DueDate:         stringPtr("2024-01-15T12:00:00Z"),
+				CreatedBy:       "admin",
+				CreationDate:    "2024-01-01T10:00:00Z",
+				LastUpdatedBy:   stringPtr("john.doe"),
+				LastUpdateDate:  stringPtr("2024-01-10T15:30:00Z"),
 			}
 			json.NewEncoder(w).Encode(task)
 
@@ -390,6 +390,64 @@ func TestTaskTools_HandleUpdateTaskProgress(t *testing.T) {
 	}
 }
 
+func TestTaskTools_HandleUpdateTaskProgress_InvalidStatus(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[UpdateTaskProgressParams]{
+		Arguments: UpdateTaskProgressParams{
+			TaskID:       "task-1",
+			Status:       "InvalidStatus",
+			ProgressNote: "Test note",
+			UpdatedBy:    "test.user",
+		},
+	}
+
+	_, err := taskTools.HandleUpdateTaskProgress(ctx, session, params)
+	if err == nil {
+		t.Fatal("Expected error for invalid status")
+	}
+
+	expectedError := "invalid status 'InvalidStatus'. Valid statuses are: [Not Started In Progress Blocked Review Complete]"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestTaskTools_HandleUpdateTaskProgress_InvalidPriority(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[UpdateTaskProgressParams]{
+		Arguments: UpdateTaskProgressParams{
+			TaskID:       "task-1",
+			Priority:     "InvalidPriority",
+			ProgressNote: "Test note",
+			UpdatedBy:    "test.user",
+		},
+	}
+
+	_, err := taskTools.HandleUpdateTaskProgress(ctx, session, params)
+	if err == nil {
+		t.Fatal("Expected error for invalid priority")
+	}
+
+	expectedError := "invalid priority 'InvalidPriority'. Valid priorities are: [Low Medium High]"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
 func TestTaskTools_HandleGetTaskOverview_EmptyParams(t *testing.T) {
 	server := createMockAPIServer()
 	defer server.Close()
@@ -452,6 +510,64 @@ func TestTaskTools_HandleCreateTaskWithContext_MissingRequiredFields(t *testing.
 	_, err = taskTools.HandleCreateTaskWithContext(ctx, session, params)
 	if err == nil {
 		t.Fatal("Expected error for missing created_by")
+	}
+}
+
+func TestTaskTools_HandleCreateTaskWithContext_InvalidStatus(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[CreateTaskWithContextParams]{
+		Arguments: CreateTaskWithContextParams{
+			TaskName:    "Test Task",
+			Status:      "InvalidStatus",
+			InitialNote: "Test note",
+			CreatedBy:   "test.user",
+		},
+	}
+
+	_, err := taskTools.HandleCreateTaskWithContext(ctx, session, params)
+	if err == nil {
+		t.Fatal("Expected error for invalid status")
+	}
+
+	expectedError := "invalid status 'InvalidStatus'. Valid statuses are: [Not Started In Progress Blocked Review Complete]"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestTaskTools_HandleCreateTaskWithContext_InvalidPriority(t *testing.T) {
+	server := createMockAPIServer()
+	defer server.Close()
+
+	apiClient := client.NewAPIClient(server.URL, 30*time.Second)
+	taskTools := NewTaskTools(apiClient)
+
+	ctx := context.Background()
+	session := &mcp.ServerSession{}
+	params := &mcp.CallToolParamsFor[CreateTaskWithContextParams]{
+		Arguments: CreateTaskWithContextParams{
+			TaskName:    "Test Task",
+			Priority:    "InvalidPriority",
+			InitialNote: "Test note",
+			CreatedBy:   "test.user",
+		},
+	}
+
+	_, err := taskTools.HandleCreateTaskWithContext(ctx, session, params)
+	if err == nil {
+		t.Fatal("Expected error for invalid priority")
+	}
+
+	expectedError := "invalid priority 'InvalidPriority'. Valid priorities are: [Low Medium High]"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
 	}
 }
 

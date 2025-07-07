@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Integration test server that mimics real API behavior
@@ -21,16 +21,16 @@ func createIntegrationAPIServer() *httptest.Server {
 
 	// Initialize with some test data
 	tasks["task-1"] = Task{
-		TaskID:         "task-1",
-		TaskName:       "Integration Test Task",
+		TaskID:          "task-1",
+		TaskName:        "Integration Test Task",
 		TaskDescription: stringPtr("Test task for integration testing"),
-		Status:         "Not Started",
-		Priority:       stringPtr("Medium"),
-		AssignedTo:     stringPtr("test.user"),
-		ProjectID:      stringPtr("proj-1"),
-		DueDate:        stringPtr("2024-12-31T23:59:59Z"),
-		CreatedBy:      "admin",
-		CreationDate:   "2024-01-01T10:00:00Z",
+		Status:          "Not Started",
+		Priority:        stringPtr("Medium"),
+		AssignedTo:      stringPtr("test.user"),
+		ProjectID:       stringPtr("proj-1"),
+		DueDate:         stringPtr("2024-12-31T23:59:59Z"),
+		CreatedBy:       "admin",
+		CreationDate:    "2024-01-01T10:00:00Z",
 	}
 
 	projects["proj-1"] = Project{
@@ -380,7 +380,7 @@ func TestTaskTools_IntegrationWorkflow(t *testing.T) {
 		changes := meta["changes_made"].([]string)
 		hasStatusChange := false
 		hasCompletionDate := false
-		
+
 		for _, change := range changes {
 			if change == "Status: In Progress → Complete" {
 				hasStatusChange = true

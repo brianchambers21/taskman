@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for project resources testing

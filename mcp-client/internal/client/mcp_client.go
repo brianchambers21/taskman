@@ -13,10 +13,10 @@ import (
 
 // MCPClient represents a client for communicating with an MCP server via HTTP
 type MCPClient struct {
-	serverURL  string
-	httpClient *http.Client
-	logger     *slog.Logger
-	sessionID  string
+	serverURL   string
+	httpClient  *http.Client
+	logger      *slog.Logger
+	sessionID   string
 	initialized bool
 }
 
@@ -38,8 +38,8 @@ type MCPResponse struct {
 
 // MCPError represents an MCP error response
 type MCPError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
@@ -57,29 +57,29 @@ func NewMCPClient(serverURL string, logger *slog.Logger) *MCPClient {
 // SendRequest sends an MCP request and returns the response
 func (c *MCPClient) SendRequest(ctx context.Context, req MCPRequest) (*MCPResponse, error) {
 	c.logger.Info("Sending MCP request", "method", req.Method, "id", req.ID)
-	
+
 	// Marshal request to JSON
 	reqBody, err := json.Marshal(req)
 	if err != nil {
 		c.logger.Error("Failed to marshal request", "error", err)
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
-	
+
 	// Create HTTP request
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.serverURL, bytes.NewBuffer(reqBody))
 	if err != nil {
 		c.logger.Error("Failed to create HTTP request", "error", err)
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
-	
+
 	httpReq.Header.Set("Content-Type", "application/json")
 	httpReq.Header.Set("Accept", "application/json, text/event-stream")
-	
+
 	// Add session ID if we have one
 	if c.sessionID != "" {
 		httpReq.Header.Set("Mcp-Session-Id", c.sessionID)
 	}
-	
+
 	// Send request
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -87,7 +87,7 @@ func (c *MCPClient) SendRequest(ctx context.Context, req MCPRequest) (*MCPRespon
 		return nil, fmt.Errorf("failed to send HTTP request: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	// Check HTTP status
 	if resp.StatusCode != http.StatusOK {
 		// Read error body for logging
@@ -95,29 +95,29 @@ func (c *MCPClient) SendRequest(ctx context.Context, req MCPRequest) (*MCPRespon
 		c.logger.Error("HTTP request failed", "status", resp.StatusCode, "body", string(errorBody))
 		return nil, fmt.Errorf("HTTP request failed with status %d: %s", resp.StatusCode, string(errorBody))
 	}
-	
+
 	// Extract session ID from headers if present
 	if sessionID := resp.Header.Get("Mcp-Session-Id"); sessionID != "" {
 		c.sessionID = sessionID
 		c.logger.Info("Updated session ID", "session_id", sessionID)
 	}
-	
+
 	// Parse SSE response
 	sseData, err := ParseSSEResponse(resp.Body)
 	if err != nil {
 		c.logger.Error("Failed to parse SSE response", "error", err)
 		return nil, fmt.Errorf("failed to parse SSE response: %w", err)
 	}
-	
+
 	// Parse MCP response from SSE data
 	var mcpResp MCPResponse
 	if err := json.Unmarshal([]byte(sseData), &mcpResp); err != nil {
 		c.logger.Error("Failed to unmarshal MCP response", "error", err, "data", sseData)
 		return nil, fmt.Errorf("failed to unmarshal MCP response: %w", err)
 	}
-	
+
 	c.logger.Info("Received MCP response", "id", mcpResp.ID, "hasResult", mcpResp.Result != nil, "hasError", mcpResp.Error != nil)
-	
+
 	return &mcpResp, nil
 }
 
@@ -126,9 +126,9 @@ func (c *MCPClient) Initialize(ctx context.Context) error {
 	if c.initialized {
 		return nil // Already initialized
 	}
-	
+
 	c.logger.Info("Initializing MCP session")
-	
+
 	req := MCPRequest{
 		JSONRpc: "2.0",
 		ID:      generateID(),
@@ -146,33 +146,33 @@ func (c *MCPClient) Initialize(ctx context.Context) error {
 			},
 		},
 	}
-	
+
 	resp, err := c.SendRequest(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to initialize MCP session: %w", err)
 	}
-	
+
 	if resp.Error != nil {
 		return fmt.Errorf("MCP initialization error: %s", resp.Error.Message)
 	}
-	
+
 	c.initialized = true
 	c.logger.Info("MCP session initialized successfully")
-	
+
 	// Send initialized notification
 	notificationReq := MCPRequest{
 		JSONRpc: "2.0",
 		Method:  "initialized",
 		Params:  map[string]interface{}{},
 	}
-	
+
 	// Note: initialized is a notification, so we don't expect a response
 	_, err = c.SendRequest(ctx, notificationReq)
 	if err != nil {
 		c.logger.Warn("Failed to send initialized notification", "error", err)
 		// Don't fail initialization for this
 	}
-	
+
 	return nil
 }
 
@@ -189,13 +189,13 @@ func (c *MCPClient) ListTools(ctx context.Context) (*MCPResponse, error) {
 	if err := c.ensureInitialized(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize before listing tools: %w", err)
 	}
-	
+
 	req := MCPRequest{
 		JSONRpc: "2.0",
 		ID:      generateID(),
 		Method:  "tools/list",
 	}
-	
+
 	return c.SendRequest(ctx, req)
 }
 
@@ -204,7 +204,7 @@ func (c *MCPClient) ExecuteTool(ctx context.Context, toolName string, params int
 	if err := c.ensureInitialized(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize before executing tool: %w", err)
 	}
-	
+
 	req := MCPRequest{
 		JSONRpc: "2.0",
 		ID:      generateID(),
@@ -214,7 +214,7 @@ func (c *MCPClient) ExecuteTool(ctx context.Context, toolName string, params int
 			"arguments": params,
 		},
 	}
-	
+
 	return c.SendRequest(ctx, req)
 }
 
@@ -223,13 +223,13 @@ func (c *MCPClient) ListPrompts(ctx context.Context) (*MCPResponse, error) {
 	if err := c.ensureInitialized(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize before listing prompts: %w", err)
 	}
-	
+
 	req := MCPRequest{
 		JSONRpc: "2.0",
 		ID:      generateID(),
 		Method:  "prompts/list",
 	}
-	
+
 	return c.SendRequest(ctx, req)
 }
 
@@ -238,7 +238,7 @@ func (c *MCPClient) GetPrompt(ctx context.Context, promptName string, params int
 	if err := c.ensureInitialized(ctx); err != nil {
 		return nil, fmt.Errorf("failed to initialize before getting prompt: %w", err)
 	}
-	
+
 	req := MCPRequest{
 		JSONRpc: "2.0",
 		ID:      generateID(),
@@ -248,7 +248,7 @@ func (c *MCPClient) GetPrompt(ctx context.Context, promptName string, params int
 			"arguments": params,
 		},
 	}
-	
+
 	return c.SendRequest(ctx, req)
 }
 

@@ -14,39 +14,39 @@ import (
 func main() {
 	// Load configuration
 	cfg := config.Load()
-	
+
 	// Set up structured logging
 	setupLogging(cfg.LogLevel)
-	
+
 	slog.Info("Starting Taskman MCP Server",
 		"server_name", cfg.ServerName,
 		"server_version", cfg.ServerVersion,
 		"api_base_url", cfg.APIBaseURL,
 	)
-	
+
 	// Create server
 	mcpServer := server.NewServer(cfg)
-	
+
 	// Set up graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	
+
 	// Handle shutdown signals
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		<-sigCh
-		
+
 		slog.Info("Shutdown signal received, stopping server...")
 		cancel()
 	}()
-	
+
 	// Run server
 	if err := mcpServer.Run(ctx); err != nil {
 		slog.Error("Server failed", "error", err)
 		os.Exit(1)
 	}
-	
+
 	slog.Info("Server stopped gracefully")
 }
 
@@ -64,13 +64,13 @@ func setupLogging(level string) {
 	default:
 		logLevel = slog.LevelInfo
 	}
-	
+
 	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		Level: logLevel,
 	})
-	
+
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
-	
+
 	slog.Info("Logging initialized", "level", level)
 }

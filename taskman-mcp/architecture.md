@@ -47,7 +47,7 @@ The Taskman MCP (Model Context Protocol) Server provides a comprehensive interfa
 - **Transport mode selection** (stdio/HTTP/both)
 - **Logging level configuration**
 
-## MCP Tools (11 Total)
+## MCP Tools (12 Total)
 
 ### Core System Tools
 
@@ -87,6 +87,11 @@ The Taskman MCP (Model Context Protocol) Server provides a comprehensive interfa
 - **Purpose**: Advanced task search with multiple filters
 - **Parameters**: status, priority, assigned_to, project_id, created_by, due_date_from, due_date_to, search_text, archived, sort_by, sort_order, limit
 - **Returns**: Filtered tasks with search insights and suggestions
+
+#### `add_task_note`
+- **Purpose**: Add a note/comment to an existing task without requiring status changes
+- **Parameters**: task_id, note, created_by
+- **Returns**: Created note details and task context
 
 ### Project Management Tools
 

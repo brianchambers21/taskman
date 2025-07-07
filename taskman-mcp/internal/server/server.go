@@ -97,7 +97,7 @@ func (s *Server) registerTools() {
 
 	createTaskWithContextTool := mcp.NewServerTool(
 		"create_task_with_context",
-		"Create a new task with context and add an initial planning note",
+		"Create a new task with context and add an initial planning note. Valid statuses: 'Not Started', 'In Progress', 'Blocked', 'Review', 'Complete'. Valid priorities: 'Low', 'Medium', 'High'",
 		taskTools.HandleCreateTaskWithContext,
 	)
 
@@ -109,13 +109,13 @@ func (s *Server) registerTools() {
 
 	updateTaskProgressTool := mcp.NewServerTool(
 		"update_task_progress",
-		"Update task status/progress and add a progress note with change tracking",
+		"Update task status/progress and add a progress note. Valid statuses: 'Not Started', 'In Progress', 'Blocked', 'Review', 'Complete'. Valid priorities: 'Low', 'Medium', 'High'",
 		taskTools.HandleUpdateTaskProgress,
 	)
 
 	searchTasksTool := mcp.NewServerTool(
 		"search_tasks",
-		"Search tasks with advanced filtering and return results with summary statistics",
+		"Search tasks with advanced filtering. Filter by status ('Not Started', 'In Progress', 'Blocked', 'Review', 'Complete'), priority ('Low', 'Medium', 'High'), assignee, project, creator, dates, and text",
 		taskTools.HandleSearchTasks,
 	)
 
@@ -144,6 +144,12 @@ func (s *Server) registerTools() {
 		taskTools.HandleGetAllTasks,
 	)
 
+	addTaskNoteTool := mcp.NewServerTool(
+		"add_task_note",
+		"Add a note to an existing task without requiring status or other changes",
+		taskTools.HandleAddTaskNote,
+	)
+
 	// Register user-focused tools
 	getMyWorkTool := mcp.NewServerTool(
 		"get_my_work",
@@ -162,10 +168,11 @@ func (s *Server) registerTools() {
 		createProjectWithInitialTasksTool,
 		getAllProjectsTool,
 		getAllTasksTool,
+		addTaskNoteTool,
 		getMyWorkTool,
 	)
 
-	slog.Info("Tools registration completed", "tool_count", 11)
+	slog.Info("Tools registration completed", "tool_count", 12)
 }
 
 // Health check tool handler

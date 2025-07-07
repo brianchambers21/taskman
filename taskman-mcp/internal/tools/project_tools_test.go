@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for project tools testing
@@ -49,14 +49,14 @@ func createProjectMockAPIServer() *httptest.Server {
 					CreationDate: "2024-01-02T10:00:00Z",
 				},
 				{
-					TaskID:         "task-3",
-					TaskName:       "Task 3",
-					Status:         "Not Started",
-					Priority:       stringPtr("Low"),
-					ProjectID:      stringPtr("proj-1"),
-					DueDate:        stringPtr("2023-12-01T12:00:00Z"), // Overdue
-					CreatedBy:      "admin",
-					CreationDate:   "2024-01-03T10:00:00Z",
+					TaskID:       "task-3",
+					TaskName:     "Task 3",
+					Status:       "Not Started",
+					Priority:     stringPtr("Low"),
+					ProjectID:    stringPtr("proj-1"),
+					DueDate:      stringPtr("2023-12-01T12:00:00Z"), // Overdue
+					CreatedBy:    "admin",
+					CreationDate: "2024-01-03T10:00:00Z",
 				},
 			}
 			json.NewEncoder(w).Encode(tasks)
@@ -66,9 +66,9 @@ func createProjectMockAPIServer() *httptest.Server {
 			json.NewDecoder(r.Body).Decode(&req)
 
 			project := Project{
-				ProjectID:   "proj-new",
-				ProjectName: req["project_name"].(string),
-				CreatedBy:   req["created_by"].(string),
+				ProjectID:    "proj-new",
+				ProjectName:  req["project_name"].(string),
+				CreatedBy:    req["created_by"].(string),
 				CreationDate: time.Now().Format(time.RFC3339),
 			}
 

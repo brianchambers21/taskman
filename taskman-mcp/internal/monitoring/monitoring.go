@@ -36,10 +36,10 @@ type MetricTracker struct {
 
 // Config for monitoring setup
 type Config struct {
-	ProjectID           string
-	Enabled             bool
-	CredentialsFile     string
-	MetricPrefix        string
+	ProjectID            string
+	Enabled              bool
+	CredentialsFile      string
+	MetricPrefix         string
 	FlushIntervalMinutes int
 }
 
@@ -297,7 +297,7 @@ func (m *Monitor) Close() error {
 	// Final flush before closing
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	if err := m.FlushMetrics(ctx); err != nil {
 		slog.Error("Failed to flush metrics before closing", "error", err)
 	}

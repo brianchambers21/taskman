@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for user tools testing
@@ -287,7 +287,7 @@ func TestUserTools_HandleGetMyWork_WithLimit(t *testing.T) {
 
 	meta := result.Meta
 	prioritizedTasks := meta["prioritized_tasks"].([]Task)
-	
+
 	// Should respect the limit
 	if len(prioritizedTasks) > 1 {
 		t.Errorf("Expected at most 1 task due to limit, got %d", len(prioritizedTasks))

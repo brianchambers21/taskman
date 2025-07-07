@@ -29,10 +29,10 @@ func NewSSEParser(r io.Reader) *SSEParser {
 // ParseNext parses the next SSE event from the stream
 func (p *SSEParser) ParseNext() (*SSEEvent, error) {
 	event := &SSEEvent{}
-	
+
 	for p.scanner.Scan() {
 		line := p.scanner.Text()
-		
+
 		// Empty line indicates end of event
 		if line == "" {
 			// Return the event if we have data
@@ -42,7 +42,7 @@ func (p *SSEParser) ParseNext() (*SSEEvent, error) {
 			// Otherwise continue to next event
 			continue
 		}
-		
+
 		// Parse SSE field
 		if strings.Contains(line, ":") {
 			parts := strings.SplitN(line, ":", 2)
@@ -51,7 +51,7 @@ func (p *SSEParser) ParseNext() (*SSEEvent, error) {
 			if len(parts) > 1 {
 				value = strings.TrimSpace(parts[1])
 			}
-			
+
 			switch field {
 			case "event":
 				event.Event = value
@@ -66,17 +66,17 @@ func (p *SSEParser) ParseNext() (*SSEEvent, error) {
 			}
 		}
 	}
-	
+
 	// Check for scanner errors
 	if err := p.scanner.Err(); err != nil {
 		return nil, fmt.Errorf("SSE scanner error: %w", err)
 	}
-	
+
 	// Return final event if we have data
 	if event.Data != "" {
 		return event, nil
 	}
-	
+
 	// No more events
 	return nil, io.EOF
 }
@@ -88,10 +88,10 @@ func ParseSSEResponse(r io.Reader) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to parse SSE event: %w", err)
 	}
-	
+
 	if event.Event != "message" {
 		return "", fmt.Errorf("unexpected SSE event type: %s", event.Event)
 	}
-	
+
 	return event.Data, nil
 }

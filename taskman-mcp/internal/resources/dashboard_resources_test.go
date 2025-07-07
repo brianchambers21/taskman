@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for dashboard resources testing
@@ -19,7 +19,7 @@ func createDashboardResourcesMockAPIServer() *httptest.Server {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 			assignedTo := r.URL.Query().Get("assigned_to")
 			createdBy := r.URL.Query().Get("created_by")
-			
+
 			var tasks []Task
 			if assignedTo == "user1" {
 				tasks = []Task{

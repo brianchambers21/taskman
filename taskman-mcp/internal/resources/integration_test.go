@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Integration test with full MCP server
@@ -23,16 +23,16 @@ func TestResourcesIntegration(t *testing.T) {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 			tasks := []Task{
 				{
-					TaskID:         "int-task-1",
-					TaskName:       "Integration Task 1",
+					TaskID:          "int-task-1",
+					TaskName:        "Integration Task 1",
 					TaskDescription: stringPtr("Description for integration task 1"),
-					Status:         "In Progress",
-					Priority:       stringPtr("High"),
-					AssignedTo:     stringPtr("integration-user"),
-					ProjectID:      stringPtr("int-proj-1"),
-					DueDate:        stringPtr("2024-02-15T12:00:00Z"),
-					CreatedBy:      "admin",
-					CreationDate:   "2024-01-01T10:00:00Z",
+					Status:          "In Progress",
+					Priority:        stringPtr("High"),
+					AssignedTo:      stringPtr("integration-user"),
+					ProjectID:       stringPtr("int-proj-1"),
+					DueDate:         stringPtr("2024-02-15T12:00:00Z"),
+					CreatedBy:       "admin",
+					CreationDate:    "2024-01-01T10:00:00Z",
 				},
 				{
 					TaskID:       "int-task-2",
@@ -48,16 +48,16 @@ func TestResourcesIntegration(t *testing.T) {
 
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks/int-task-1":
 			task := Task{
-				TaskID:         "int-task-1",
-				TaskName:       "Integration Task 1",
+				TaskID:          "int-task-1",
+				TaskName:        "Integration Task 1",
 				TaskDescription: stringPtr("Description for integration task 1"),
-				Status:         "In Progress",
-				Priority:       stringPtr("High"),
-				AssignedTo:     stringPtr("integration-user"),
-				ProjectID:      stringPtr("int-proj-1"),
-				DueDate:        stringPtr("2024-02-15T12:00:00Z"),
-				CreatedBy:      "admin",
-				CreationDate:   "2024-01-01T10:00:00Z",
+				Status:          "In Progress",
+				Priority:        stringPtr("High"),
+				AssignedTo:      stringPtr("integration-user"),
+				ProjectID:       stringPtr("int-proj-1"),
+				DueDate:         stringPtr("2024-02-15T12:00:00Z"),
+				CreatedBy:       "admin",
+				CreationDate:    "2024-01-01T10:00:00Z",
 			}
 			json.NewEncoder(w).Encode(task)
 
@@ -129,7 +129,7 @@ func TestResourcesIntegration(t *testing.T) {
 		// We can't directly test through the MCP server without setting up transport
 		// So we'll test the resource handlers directly but through the server's registered resources
 		taskResources := NewTaskResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		result, err := taskResources.HandleTaskResource(ctx, session, params)
 		if err != nil {
 			t.Fatalf("TaskResource integration test failed: %v", err)
@@ -158,7 +158,7 @@ func TestResourcesIntegration(t *testing.T) {
 		}
 
 		taskResources := NewTaskResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		result, err := taskResources.HandleTasksOverviewResource(ctx, session, params)
 		if err != nil {
 			t.Fatalf("TasksOverviewResource integration test failed: %v", err)
@@ -187,7 +187,7 @@ func TestResourcesIntegration(t *testing.T) {
 		}
 
 		projectResources := NewProjectResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		result, err := projectResources.HandleProjectResource(ctx, session, params)
 		if err != nil {
 			t.Fatalf("ProjectResource integration test failed: %v", err)
@@ -216,7 +216,7 @@ func TestResourcesIntegration(t *testing.T) {
 		}
 
 		dashboardResources := NewDashboardResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		result, err := dashboardResources.HandleSystemDashboardResource(ctx, session, params)
 		if err != nil {
 			t.Fatalf("SystemDashboardResource integration test failed: %v", err)
@@ -249,7 +249,7 @@ func TestResourcesIntegration(t *testing.T) {
 			case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 				assignedTo := r.URL.Query().Get("assigned_to")
 				createdBy := r.URL.Query().Get("created_by")
-				
+
 				var tasks []Task
 				if assignedTo == "integration-user" {
 					tasks = []Task{
@@ -287,7 +287,7 @@ func TestResourcesIntegration(t *testing.T) {
 		}
 
 		dashboardResources := NewDashboardResources(client.NewAPIClient(apiServerWithFilter.URL, 30*time.Second))
-		
+
 		result, err := dashboardResources.HandleUserDashboardResource(ctx, session, params)
 		if err != nil {
 			t.Fatalf("UserDashboardResource integration test failed: %v", err)
@@ -335,7 +335,7 @@ func TestResourcesIntegrationErrorHandling(t *testing.T) {
 		}
 
 		taskResources := NewTaskResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		_, err := taskResources.HandleTaskResource(ctx, session, params)
 		if err == nil {
 			t.Fatal("Expected error for nonexistent task")
@@ -346,14 +346,14 @@ func TestResourcesIntegrationErrorHandling(t *testing.T) {
 		}
 	})
 
-	// Test project resource with nonexistent project  
+	// Test project resource with nonexistent project
 	t.Run("ProjectResourceNotFound", func(t *testing.T) {
 		params := &mcp.ReadResourceParams{
 			URI: "taskman://project/nonexistent",
 		}
 
 		projectResources := NewProjectResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		_, err := projectResources.HandleProjectResource(ctx, session, params)
 		if err == nil {
 			t.Fatal("Expected error for nonexistent project")
@@ -371,7 +371,7 @@ func TestResourcesIntegrationErrorHandling(t *testing.T) {
 		}
 
 		dashboardResources := NewDashboardResources(client.NewAPIClient(apiServer.URL, 30*time.Second))
-		
+
 		_, err := dashboardResources.HandleSystemDashboardResource(ctx, session, params)
 		if err == nil {
 			t.Fatal("Expected error for API server error")

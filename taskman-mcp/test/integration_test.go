@@ -57,7 +57,7 @@ func TestAPIClientIntegration(t *testing.T) {
 	// Create a mock API server
 	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 			w.WriteHeader(http.StatusOK)

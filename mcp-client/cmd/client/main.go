@@ -18,10 +18,10 @@ import (
 func main() {
 	// Parse command line flags
 	var (
-		serverURL = flag.String("server", "", "MCP server URL (overrides MCP_SERVER_URL)")
-		logLevel  = flag.String("log-level", "", "Log level: debug, info, warn, error (overrides LOG_LEVEL)")
+		serverURL   = flag.String("server", "", "MCP server URL (overrides MCP_SERVER_URL)")
+		logLevel    = flag.String("log-level", "", "Log level: debug, info, warn, error (overrides LOG_LEVEL)")
 		interactive = flag.Bool("interactive", false, "Run in interactive mode")
-		intent    = flag.String("intent", "", "JSON intent to process")
+		intent      = flag.String("intent", "", "JSON intent to process")
 	)
 	flag.Parse()
 
@@ -36,15 +36,15 @@ func main() {
 
 	// Setup logger
 	logger := setupLogger(cfg.LogLevel)
-	
+
 	// Create MCP client
 	mcpClient := client.NewMCPClient(cfg.MCPServerURL, logger)
-	
+
 	// Create intent handler
 	intentHandler := handlers.NewIntentHandler(mcpClient, logger)
-	
+
 	ctx := context.Background()
-	
+
 	// Handle different modes
 	if *interactive {
 		runInteractiveMode(ctx, intentHandler, logger)
@@ -57,7 +57,7 @@ func main() {
 			printUsage()
 			os.Exit(1)
 		}
-		
+
 		command := args[0]
 		switch command {
 		case "list-tools":
@@ -114,11 +114,11 @@ func setupLogger(level string) *slog.Logger {
 	default:
 		logLevel = slog.LevelInfo
 	}
-	
+
 	opts := &slog.HandlerOptions{
 		Level: logLevel,
 	}
-	
+
 	return slog.New(slog.NewTextHandler(os.Stderr, opts))
 }
 
@@ -126,31 +126,31 @@ func runInteractiveMode(ctx context.Context, handler *handlers.IntentHandler, lo
 	fmt.Println("MCP Client Interactive Mode")
 	fmt.Println("Enter JSON intents (press Ctrl+D to exit):")
 	fmt.Println()
-	
+
 	scanner := bufio.NewScanner(os.Stdin)
 	for {
 		fmt.Print("> ")
 		if !scanner.Scan() {
 			break
 		}
-		
+
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
-		
+
 		result, err := handler.ProcessIntent(ctx, line)
 		if err != nil {
 			fmt.Printf("Error: %v\n", err)
 			continue
 		}
-		
+
 		output, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
 			fmt.Printf("Error formatting result: %v\n", err)
 			continue
 		}
-		
+
 		fmt.Printf("Result:\n%s\n\n", output)
 	}
 }
@@ -161,13 +161,13 @@ func runSingleIntent(ctx context.Context, handler *handlers.IntentHandler, inten
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	output, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error formatting result: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	fmt.Printf("%s\n", output)
 }
 
@@ -184,13 +184,13 @@ func runExecuteTool(ctx context.Context, handler *handlers.IntentHandler, toolNa
 			"arguments": args,
 		},
 	}
-	
+
 	intentJSON, err := json.Marshal(intentData)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating intent: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	runSingleIntent(ctx, handler, string(intentJSON), logger)
 }
 
@@ -207,13 +207,13 @@ func runGetPrompt(ctx context.Context, handler *handlers.IntentHandler, promptNa
 			"arguments": args,
 		},
 	}
-	
+
 	intentJSON, err := json.Marshal(intentData)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error creating intent: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	runSingleIntent(ctx, handler, string(intentJSON), logger)
 }
 

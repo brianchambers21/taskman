@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/config"
 	"github.com/bchamber/taskman-mcp/internal/server"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestMCPSpecificationCompliance(t *testing.T) {
@@ -64,9 +64,9 @@ func TestServerMCPFeatures(t *testing.T) {
 func TestMCPProtocolCapabilities(t *testing.T) {
 	// Test that server can be created with proper options
 	serverOptions := &mcp.ServerOptions{
-		Instructions:    "Test server instructions",
-		PageSize:       100,
-		KeepAlive:      30 * time.Second,
+		Instructions: "Test server instructions",
+		PageSize:     100,
+		KeepAlive:    30 * time.Second,
 	}
 
 	mcpServer := mcp.NewServer("test-server", "1.0.0", serverOptions)

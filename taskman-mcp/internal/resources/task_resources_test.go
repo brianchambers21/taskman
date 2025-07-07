@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/bchamber/taskman-mcp/internal/client"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Mock API server for task resources testing
@@ -19,21 +19,21 @@ func createTaskResourcesMockAPIServer() *httptest.Server {
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks":
 			// Return tasks based on query parameters
 			assignedTo := r.URL.Query().Get("assigned_to")
-			
+
 			var tasks []Task
 			if assignedTo == "user1" {
 				tasks = []Task{
 					{
-						TaskID:         "task-1",
-						TaskName:       "User1 Task 1",
+						TaskID:          "task-1",
+						TaskName:        "User1 Task 1",
 						TaskDescription: stringPtr("Description for task 1"),
-						Status:         "In Progress",
-						Priority:       stringPtr("High"),
-						AssignedTo:     stringPtr("user1"),
-						ProjectID:      stringPtr("proj-1"),
-						DueDate:        stringPtr("2024-01-15T12:00:00Z"),
-						CreatedBy:      "admin",
-						CreationDate:   "2024-01-01T10:00:00Z",
+						Status:          "In Progress",
+						Priority:        stringPtr("High"),
+						AssignedTo:      stringPtr("user1"),
+						ProjectID:       stringPtr("proj-1"),
+						DueDate:         stringPtr("2024-01-15T12:00:00Z"),
+						CreatedBy:       "admin",
+						CreationDate:    "2024-01-01T10:00:00Z",
 					},
 					{
 						TaskID:       "task-2",
@@ -49,16 +49,16 @@ func createTaskResourcesMockAPIServer() *httptest.Server {
 				// Return all tasks
 				tasks = []Task{
 					{
-						TaskID:         "task-1",
-						TaskName:       "Task 1",
+						TaskID:          "task-1",
+						TaskName:        "Task 1",
 						TaskDescription: stringPtr("Description for task 1"),
-						Status:         "In Progress",
-						Priority:       stringPtr("High"),
-						AssignedTo:     stringPtr("user1"),
-						ProjectID:      stringPtr("proj-1"),
-						DueDate:        stringPtr("2024-01-15T12:00:00Z"),
-						CreatedBy:      "admin",
-						CreationDate:   "2024-01-01T10:00:00Z",
+						Status:          "In Progress",
+						Priority:        stringPtr("High"),
+						AssignedTo:      stringPtr("user1"),
+						ProjectID:       stringPtr("proj-1"),
+						DueDate:         stringPtr("2024-01-15T12:00:00Z"),
+						CreatedBy:       "admin",
+						CreationDate:    "2024-01-01T10:00:00Z",
 					},
 					{
 						TaskID:       "task-2",
@@ -83,18 +83,18 @@ func createTaskResourcesMockAPIServer() *httptest.Server {
 
 		case r.Method == "GET" && r.URL.Path == "/api/v1/tasks/task-1":
 			task := Task{
-				TaskID:         "task-1",
-				TaskName:       "Test Task 1",
+				TaskID:          "task-1",
+				TaskName:        "Test Task 1",
 				TaskDescription: stringPtr("Test description"),
-				Status:         "In Progress",
-				Priority:       stringPtr("High"),
-				AssignedTo:     stringPtr("user1"),
-				ProjectID:      stringPtr("proj-1"),
-				DueDate:        stringPtr("2024-01-15T12:00:00Z"),
-				CreatedBy:      "admin",
-				CreationDate:   "2024-01-01T10:00:00Z",
-				LastUpdatedBy:  stringPtr("user1"),
-				LastUpdateDate: stringPtr("2024-01-10T15:30:00Z"),
+				Status:          "In Progress",
+				Priority:        stringPtr("High"),
+				AssignedTo:      stringPtr("user1"),
+				ProjectID:       stringPtr("proj-1"),
+				DueDate:         stringPtr("2024-01-15T12:00:00Z"),
+				CreatedBy:       "admin",
+				CreationDate:    "2024-01-01T10:00:00Z",
+				LastUpdatedBy:   stringPtr("user1"),
+				LastUpdateDate:  stringPtr("2024-01-10T15:30:00Z"),
 			}
 			json.NewEncoder(w).Encode(task)
 
